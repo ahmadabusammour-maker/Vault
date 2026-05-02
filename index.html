@@ -3,55 +3,73 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vault</title>
-    <!-- Favicon using a gamepad SVG icon -->
+    <title>Vault Network</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a855f7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect width='20' height='12' x='2' y='6' rx='2'/><path d='M9 12h.01'/><path d='M15 12h.01'/><path d='M12 15h.01'/><path d='M12 9h.01'/></svg>">
-    <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- React and ReactDOM libraries -->
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <!-- Babel for JSX transformation in the browser -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- LocalForage for limitless local storage (IndexedDB) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&display=swap');
-        body {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            background-color: #0f172a;
-            margin: 0;
-            overflow: hidden;
-        }
-        /* Custom scrollbar for the glass look */
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.05);
-        }
-        ::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.2);
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800;900&display=swap');
+        
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            background-color: #020617; /* Very deep slate/black */
+            margin: 0; 
+            overflow: hidden; 
+            color: white;
         }
 
-        /* Subtle float animations for background */
-        @keyframes float {
-            0% { transform: translateY(0px) rotate(0deg); }
-            50% { transform: translateY(-20px) rotate(5deg); }
-            100% { transform: translateY(0px) rotate(0deg); }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
+
+        @keyframes float { 
+            0% { transform: translateY(0px) rotate(0deg) scale(1); } 
+            50% { transform: translateY(-30px) rotate(5deg) scale(1.05); } 
+            100% { transform: translateY(0px) rotate(0deg) scale(1); } 
         }
-        .animate-float {
-            animation: float 15s ease-in-out infinite;
+        .animate-float { animation: float 12s ease-in-out infinite; }
+        .animate-float-delayed { animation: float 15s ease-in-out infinite; animation-delay: -5s; }
+        
+        /* The Ultimate Glass Panel */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(32px);
+            -webkit-backdrop-filter: blur(32px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-top: 1px solid rgba(255, 255, 255, 0.3);
+            border-left: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
         }
-        .animate-float-delayed {
-            animation: float 18s ease-in-out infinite;
-            animation-delay: 2s;
+
+        /* 3D Inner Shadow Inputs */
+        .neo-input {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: inset 0 2px 15px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .neo-input:hover {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.25);
+        }
+
+        .neo-input:focus {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(168, 85, 247, 0.6);
+            box-shadow: inset 0 2px 15px rgba(0, 0, 0, 0.3), 0 0 25px rgba(168, 85, 247, 0.4);
+            outline: none;
+        }
+
+        .neo-input.blue-focus:focus {
+            border-color: rgba(59, 130, 246, 0.6);
+            box-shadow: inset 0 2px 15px rgba(0, 0, 0, 0.3), 0 0 25px rgba(59, 130, 246, 0.4);
         }
     </style>
 </head>
@@ -61,402 +79,548 @@
     <script type="text/babel">
         const { useState, useRef, useEffect, useMemo } = React;
         
-        const Icon = ({ name, size = 24, className = "", fill = "none" }) => {
+        const API_URL = "https://script.google.com/macros/s/AKfycbzoxl1z9iR9dxpbDID1_5vOI_go3fr4zN7MDyM5D2oDMYXnuDJM7qsZ_nfXmczZFNZu/exec";
+
+        const Icon = ({ name, size = 24, className = "" }) => {
             const iconRef = useRef(null);
-            
             useEffect(() => {
                 if (iconRef.current && window.lucide) {
-                    iconRef.current.innerHTML = `<i data-lucide="${name}" class="${className}" fill="${fill}" style="width: ${size}px; height: ${size}px;"></i>`;
+                    iconRef.current.innerHTML = `<i data-lucide="${name}" class="${className}" style="width: ${size}px; height: ${size}px;"></i>`;
                     window.lucide.createIcons({ root: iconRef.current });
                 }
-            }, [name, size, className, fill]);
-
-            return <span ref={iconRef} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}></span>;
+            }, [name, size, className]);
+            return <span ref={iconRef} className="inline-flex items-center justify-center"></span>;
         };
 
         function App() {
             const [games, setGames] = useState([]);
             const [isLoaded, setIsLoaded] = useState(false);
+            const [view, setView] = useState('library'); 
+            const [communityVaults, setCommunityVaults] = useState([]);
+            
+            // Network Profile State
+            const [vaultName, setVaultName] = useState('');
+            const [isNetworkModalOpen, setIsNetworkModalOpen] = useState(false);
+            const [isPublishing, setIsPublishing] = useState(false);
+            const [isDeleting, setIsDeleting] = useState(false);
+            const [isLoadingCommunity, setIsLoadingCommunity] = useState(false);
             
             const [searchQuery, setSearchQuery] = useState('');
             const [isAddModalOpen, setIsAddModalOpen] = useState(false);
             const [playingGame, setPlayingGame] = useState(null);
             const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
             const [gameToDelete, setGameToDelete] = useState(null);
-            const [errorMsg, setErrorMsg] = useState("");
-            
-            // New state to hold our Virtual File URL for advanced games
-            const [blobUrl, setBlobUrl] = useState(null);
 
+            // Add Game State
             const [addMethod, setAddMethod] = useState('url'); 
             const [newGameName, setNewGameName] = useState('');
             const [newGameUrl, setNewGameUrl] = useState('');
             const [newGameCover, setNewGameCover] = useState('');
-            const [newGameFileContent, setNewGameFileContent] = useState('');
+            const [newGameFileContent, setNewGameFileContent] = useState(null);
             const [fileName, setFileName] = useState('');
+            const [blobUrl, setBlobUrl] = useState(null);
+            
             const fileInputRef = useRef(null);
 
-            // Load and migrate data using localforage
+            // Persistence
             useEffect(() => {
-                const loadGames = async () => {
-                    try {
-                        let savedGames = await localforage.getItem('vault_games');
-                        if (!savedGames) {
-                            const oldSaved = localStorage.getItem('vault_games');
-                            if (oldSaved) {
-                                savedGames = JSON.parse(oldSaved);
-                                await localforage.setItem('vault_games', savedGames);
-                            } else {
-                                savedGames = [];
-                            }
-                        }
-                        setGames(savedGames);
-                        setIsLoaded(true);
-                    } catch (err) {
-                        console.error("Failed to load games:", err);
-                        setIsLoaded(true);
-                    }
+                const init = async () => {
+                    const savedGames = await localforage.getItem('vault_games') || [];
+                    const savedName = await localforage.getItem('vault_name') || '';
+                    setGames(savedGames);
+                    setVaultName(savedName);
+                    setIsLoaded(true);
                 };
-                loadGames();
+                init();
             }, []);
 
-            // Save automatically when games array changes
             useEffect(() => {
                 if (isLoaded) {
-                    localforage.setItem('vault_games', games).catch(err => {
-                        console.error("Failed to save games:", err);
-                    });
+                    localforage.setItem('vault_games', games);
+                    localforage.setItem('vault_name', vaultName);
                 }
-            }, [games, isLoaded]);
+            }, [games, vaultName, isLoaded]);
 
-            // Create a Blob URL safely when playing a local file game to bypass WASM/Sandbox restrictions
             useEffect(() => {
-                if (playingGame && playingGame.type === 'file') {
-                    // Create a virtual file in memory. 
-                    // By passing playingGame.content directly (which is now a Blob), we preserve exact binary data.
-                    const blob = new Blob([playingGame.content], { type: 'text/html;charset=utf-8' });
-                    const url = URL.createObjectURL(blob);
+                if (playingGame?.type === 'file' && playingGame.content) {
+                    let url;
+                    if (playingGame.content instanceof Blob) {
+                        url = URL.createObjectURL(playingGame.content);
+                    } else {
+                        const blob = new Blob([playingGame.content], { type: 'text/html;charset=utf-8' });
+                        url = URL.createObjectURL(blob);
+                    }
                     setBlobUrl(url);
-                    
-                    // Cleanup memory when the game is closed
-                    return () => {
-                        URL.revokeObjectURL(url);
-                        setBlobUrl(null);
-                    };
-                } else {
-                    setBlobUrl(null);
+                    return () => URL.revokeObjectURL(url);
                 }
+                setBlobUrl(null);
             }, [playingGame]);
+
+            const fetchCommunity = async () => {
+                setView('community');
+                setIsLoadingCommunity(true);
+                try {
+                    const targetUrl = API_URL + "?t=" + Date.now();
+                    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+                    const res = await fetch(proxyUrl);
+                    const data = await res.json();
+                    const validVaults = Array.isArray(data) ? data.filter(v => v.games && v.games.length > 0 && v.userName !== 'Deleted Vault') : [];
+                    setCommunityVaults(validVaults);
+                } catch (e) { 
+                    setCommunityVaults([]);
+                } finally {
+                    setIsLoadingCommunity(false);
+                }
+            };
+
+            const publishVault = async () => {
+                if (!vaultName.trim()) return alert("Please enter a Vault Name!");
+                let vaultId = await localforage.getItem('vault_id') || crypto.randomUUID();
+                await localforage.setItem('vault_id', vaultId);
+                setIsPublishing(true);
+                const shareableGames = games.filter(g => g.type === 'url').map(g => ({ name: g.name, url: g.url, cover: g.cover }));
+                try {
+                    await fetch(API_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify({ vaultId, userName: vaultName, games: shareableGames })
+                    });
+                    alert("Vault Published!");
+                    setIsNetworkModalOpen(false);
+                } catch (e) { console.error(e); }
+                setIsPublishing(false);
+            };
+
+            const deleteSharedVault = async () => {
+                let vaultId = await localforage.getItem('vault_id');
+                if (!vaultId) return;
+                if (!confirm("Delete your public vault?")) return;
+                setIsDeleting(true);
+                try {
+                    await fetch(API_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        body: JSON.stringify({ vaultId, userName: 'Deleted Vault', games: [] })
+                    });
+                    setVaultName('');
+                    alert("Vault Unlisted.");
+                    setIsNetworkModalOpen(false);
+                } catch (e) { console.error(e); }
+                setIsDeleting(false);
+            };
+
+            const importGame = (game) => {
+                const newGame = { 
+                    ...game, 
+                    id: crypto.randomUUID(), 
+                    type: 'url', 
+                    favorite: false,
+                    cover: game.cover || 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=400'
+                };
+                setGames(prev => [...prev, newGame]);
+                alert(`Added ${game.name} to your Library!`);
+            };
 
             const handleAddGame = (e) => {
                 e.preventDefault();
-                setErrorMsg("");
-                if (!newGameName.trim()) return;
-
-                let finalContent = null;
-                let finalUrl = null;
-
-                if (addMethod === 'url') {
-                    if (!newGameUrl) return;
-                    finalUrl = newGameUrl;
-                } else {
-                    if (!newGameFileContent) return;
-                    // The content is now stored natively as a Blob object!
-                    finalContent = newGameFileContent;
-                }
-
                 const newGame = {
                     id: crypto.randomUUID(),
                     name: newGameName,
                     type: addMethod,
-                    cover: newGameCover || 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=800',
-                    favorite: false,
-                    createdAt: Date.now()
+                    cover: newGameCover || 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=400',
+                    url: newGameUrl,
+                    content: newGameFileContent,
+                    favorite: false
                 };
-
-                if (finalUrl) newGame.url = finalUrl;
-                if (finalContent) newGame.content = finalContent;
-
-                setGames(prev => [...prev, newGame]);
-                resetForm();
+                setGames([...games, newGame]);
                 setIsAddModalOpen(false);
+                setNewGameName(''); setNewGameUrl(''); setNewGameCover(''); setNewGameFileContent(null); setFileName('');
             };
 
-            const handleFileUpload = (e) => {
+            const handleFileChange = (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
-
                 setFileName(file.name);
-                if (!newGameName) {
-                    setNewGameName(file.name.replace(/\.[^/.]+$/, ""));
-                }
-
-                // DIRECT BLOB STORAGE: We no longer read it as text (which corrupts WASM/Binary files like Minecraft)
-                // We store the raw File object directly into state.
+                if (!newGameName) setNewGameName(file.name.replace(/\.[^/.]+$/, ""));
                 setNewGameFileContent(file);
-            };
-
-            const resetForm = () => {
-                setNewGameName('');
-                setNewGameUrl('');
-                setNewGameCover('');
-                setNewGameFileContent('');
-                setFileName('');
-                setErrorMsg('');
-                setAddMethod('url');
-            };
-
-            const requestRemoveGame = (game, e) => {
-                e.stopPropagation();
-                setGameToDelete(game);
-            };
-
-            const confirmRemoveGame = () => {
-                if (gameToDelete) {
-                    setGames(prev => prev.filter(g => g.id !== gameToDelete.id));
-                    setGameToDelete(null);
-                }
-            };
-
-            const toggleFavorite = (game, e) => {
-                e.stopPropagation();
-                setGames(prev => prev.map(g => g.id === game.id ? { ...g, favorite: !g.favorite } : g));
             };
 
             const displayedGames = useMemo(() => {
                 return games
                     .filter(g => showFavoritesOnly ? g.favorite : true)
                     .filter(g => g.name.toLowerCase().includes(searchQuery.toLowerCase()))
-                    .sort((a, b) => {
-                        if (a.favorite === b.favorite) return a.name.localeCompare(b.name);
-                        return a.favorite ? -1 : 1;
-                    });
+                    .sort((a, b) => a.favorite === b.favorite ? a.name.localeCompare(b.name) : (a.favorite ? -1 : 1));
             }, [games, showFavoritesOnly, searchQuery]);
 
-            const glassPanelClass = "bg-white/10 backdrop-blur-2xl border border-white/20 border-t-white/30 border-l-white/30 shadow-[0_15px_35px_rgba(0,0,0,0.4)] transition-all duration-500";
-            const inputClass = "w-full bg-white/5 backdrop-blur-md border border-white/10 text-white placeholder-gray-400 rounded-full px-6 py-4 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:bg-white/10 hover:bg-white/10 hover:border-white/30 transition-all duration-300 shadow-[inset_0_2px_15px_rgba(0,0,0,0.2)]";
-
             return (
-                <div className="min-h-screen text-white overflow-hidden relative">
-                    <div className="absolute inset-0 z-0 bg-slate-900 overflow-hidden">
-                        <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] rounded-full bg-purple-600/20 blur-[120px] animate-float"></div>
-                        <div className="absolute bottom-[-10%] right-[-10%] w-[70%] h-[70%] rounded-full bg-blue-600/20 blur-[150px] animate-float-delayed"></div>
-                        <div className="absolute top-[30%] left-[40%] w-[40%] h-[40%] rounded-full bg-emerald-500/10 blur-[100px] animate-pulse" style={{ animationDuration: '8s' }}></div>
-                    </div>
+                <div className="h-screen w-full flex flex-col relative overflow-hidden bg-[#020617]">
+                    {/* Giant Ambient Background Blobs */}
+                    <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-purple-600/15 blur-[140px] rounded-full animate-float pointer-events-none"></div>
+                    <div className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] bg-blue-600/15 blur-[140px] rounded-full animate-float-delayed pointer-events-none"></div>
 
-                    <div className="relative z-10 h-screen flex flex-col">
-                        <header className="p-6 md:p-8 flex flex-col max-w-[90rem] mx-auto w-full gap-6">
-                            
-                            <div className="flex items-center justify-between w-full">
-                                <div className="flex items-center gap-3 sm:gap-4 cursor-default">
-                                    <div className={`p-3 sm:p-4 rounded-[1.5rem] sm:rounded-[2rem] ${glassPanelClass} bg-gradient-to-br from-purple-500/50 to-blue-500/50 hover:scale-110 hover:rotate-12 hover:shadow-[0_0_40px_rgba(168,85,247,0.5)] transition-all duration-500`}>
-                                        <Icon name="gamepad-2" size={32} />
-                                    </div>
-                                    <h1 className="text-3xl sm:text-4xl font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-white via-gray-200 to-gray-400 hover:from-purple-300 hover:to-blue-300 transition-all duration-500 cursor-pointer">
-                                        VAULT
-                                    </h1>
+                    {/* Super Glass Header */}
+                    <header className="relative z-20 mx-4 sm:mx-8 mt-6 px-6 sm:px-8 py-5 sm:py-6 flex flex-col md:flex-row items-center justify-between glass-panel rounded-[3rem] gap-6 animate-in fade-in slide-in-from-top-4 duration-700">
+                        <div className="flex items-center gap-5 w-full md:w-auto justify-between md:justify-start">
+                            <div className="flex items-center gap-5 group cursor-default">
+                                <div className="p-4 bg-gradient-to-br from-purple-500/80 to-blue-600/80 rounded-[1.5rem] shadow-[0_0_30px_rgba(168,85,247,0.4)] group-hover:scale-110 group-hover:rotate-12 group-hover:shadow-[0_0_50px_rgba(168,85,247,0.7)] transition-all duration-500 border border-white/20">
+                                    <Icon name="gamepad-2" size={36} className="text-white" />
                                 </div>
+                                <h1 className="text-4xl sm:text-5xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-white via-purple-100 to-gray-400 group-hover:from-purple-300 group-hover:to-blue-300 transition-colors duration-500 drop-shadow-sm">
+                                    VAULT
+                                </h1>
+                            </div>
+                            
+                            <button onClick={() => setIsNetworkModalOpen(true)} className="md:hidden p-4 rounded-full border border-white/10 bg-white/5 hover:bg-blue-500 hover:shadow-[0_0_30px_rgba(59,130,246,0.5)] transition-all backdrop-blur-md">
+                                <Icon name="globe" size={24} className="text-blue-200" />
+                            </button>
+                        </div>
 
-                                <div className="flex items-center gap-3 sm:gap-4">
+                        <div className="flex items-center gap-4 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
+                             <div className="flex bg-black/40 p-1.5 rounded-full border border-white/10 shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)] shrink-0">
+                                <button onClick={() => setView('library')} className={`px-8 py-3 rounded-full transition-all text-sm font-black tracking-widest uppercase ${view === 'library' ? 'bg-white text-black shadow-lg scale-[1.02]' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}>Library</button>
+                                <button onClick={fetchCommunity} className={`px-8 py-3 rounded-full transition-all text-sm font-black tracking-widest uppercase ${view === 'community' ? 'bg-white text-black shadow-lg scale-[1.02]' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}>Network</button>
+                            </div>
+
+                            <button onClick={() => setIsNetworkModalOpen(true)} title="Network Profile" className="hidden md:flex p-4 rounded-full border border-white/10 bg-white/5 hover:bg-blue-500/40 hover:border-blue-400 hover:shadow-[0_0_30px_rgba(59,130,246,0.4)] transition-all backdrop-blur-md shrink-0 group active:scale-95">
+                                <Icon name="globe" size={22} className="text-blue-200 group-hover:scale-110 transition-transform" />
+                            </button>
+
+                            <button
+                                onClick={() => setIsAddModalOpen(true)}
+                                className="group flex items-center gap-3 px-8 py-4 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 hover:shadow-[0_10px_40px_rgba(168,85,247,0.6)] hover:-translate-y-1 active:scale-95 transition-all shadow-[0_10px_20px_rgba(168,85,247,0.3)] shrink-0"
+                            >
+                                <Icon name="plus" size={20} className="text-white group-hover:rotate-180 transition-transform duration-700" />
+                                <span className="font-black text-sm tracking-widest uppercase text-white hidden lg:block">Add Game</span>
+                            </button>
+                        </div>
+                    </header>
+
+                    <main className="flex-1 overflow-y-auto px-4 sm:px-8 pt-8 pb-12 relative z-10 w-full max-w-[100rem] mx-auto">
+                        {view === 'library' && (
+                            <div className="space-y-10 animate-in fade-in duration-500">
+                                <div className="flex flex-col sm:flex-row items-center gap-4 max-w-4xl mx-auto">
+                                    <div className="relative group flex-1 w-full">
+                                        <Icon name="search" size={24} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-purple-400 transition-colors" />
+                                        <input 
+                                            type="text" 
+                                            placeholder="Search your vast collection..." 
+                                            className="w-full pl-16 pr-6 py-5 rounded-full neo-input text-xl font-medium"
+                                            value={searchQuery}
+                                            onChange={e => setSearchQuery(e.target.value)}
+                                        />
+                                    </div>
                                     {games.length > 0 && (
                                         <button
                                             onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
-                                            className={`flex items-center justify-center gap-2 px-4 sm:px-5 py-3 sm:py-3.5 rounded-full backdrop-blur-md transition-all duration-500 border hover:-translate-y-1 ${
-                                                showFavoritesOnly 
-                                                    ? 'bg-red-500/20 border-red-500/50 text-red-300 shadow-[0_8px_20px_rgba(239,68,68,0.4)]' 
-                                                    : 'bg-white/5 hover:bg-white/15 border-white/10 text-gray-300 hover:shadow-[0_8px_20px_rgba(255,255,255,0.1)]'
-                                            }`}
+                                            className={`p-5 rounded-full neo-input flex items-center justify-center transition-all hover:scale-105 active:scale-95 shrink-0 ${showFavoritesOnly ? 'bg-red-500/20 border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.4)]' : ''}`}
+                                            title="Toggle Favorites"
                                         >
-                                            <Icon name="heart" size={20} className={showFavoritesOnly ? "text-red-400" : ""} />
+                                            <Icon name="heart" size={24} className={showFavoritesOnly ? "text-red-400" : "text-gray-400"} fill={showFavoritesOnly ? "currentColor" : "none"} />
                                         </button>
                                     )}
-                                    <button
-                                        onClick={() => setIsAddModalOpen(true)}
-                                        className="group flex items-center justify-center gap-2 px-5 sm:px-8 py-3 sm:py-3.5 rounded-full bg-gradient-to-r from-white/10 to-white/5 hover:from-purple-500/40 hover:to-blue-500/40 border border-white/20 border-t-white/30 backdrop-blur-xl transition-all duration-500 hover:scale-105 shadow-[0_8px_20px_rgba(0,0,0,0.3)] hover:shadow-[0_10px_30px_rgba(168,85,247,0.5)] active:scale-95"
-                                    >
-                                        <Icon name="plus" size={22} className="group-hover:rotate-180 transition-transform duration-700 text-purple-300 group-hover:text-white" />
-                                        <span className="font-bold tracking-wide text-white hidden sm:block">Add Game</span>
-                                    </button>
                                 </div>
-                            </div>
 
-                            <div className="relative group w-full">
-                                <div className="absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none">
-                                    <Icon name="search" size={20} className="text-gray-400 group-focus-within:text-purple-400 group-hover:text-purple-300 transition-colors duration-300" />
-                                </div>
-                                <input 
-                                    type="text" 
-                                    placeholder="Search vault..." 
-                                    value={searchQuery || ''}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className={inputClass + " w-full pl-14 pr-6 py-4 text-lg"}
-                                />
-                            </div>
-                        </header>
-
-                        <main className="flex-1 overflow-y-auto p-6 md:p-8 max-w-[90rem] mx-auto w-full">
-                            {!isLoaded ? (
-                                <div className="h-full flex flex-col items-center justify-center opacity-80 mt-10">
-                                    <div className="w-16 h-16 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mb-6"></div>
-                                </div>
-                            ) : games.length === 0 ? (
-                                <div className="h-full flex flex-col items-center justify-center opacity-80 mt-10 animate-in fade-in zoom-in duration-700">
-                                    <div className="relative">
-                                        <div className="absolute inset-0 bg-purple-500/20 blur-[50px] rounded-full"></div>
-                                        <Icon name="gamepad-2" size={100} className="mb-8 text-white/40 animate-bounce" style={{ animationDuration: '3s' }} />
+                                {!isLoaded ? (
+                                    <div className="flex justify-center py-20"><Icon name="loader" size={60} className="animate-spin text-purple-500 drop-shadow-[0_0_20px_rgba(168,85,247,0.5)]" /></div>
+                                ) : displayedGames.length === 0 ? (
+                                    <div className="glass-panel p-16 rounded-[4rem] text-center max-w-2xl mx-auto border-dashed border-2 border-white/20">
+                                        <div className="w-32 h-32 bg-purple-500/10 rounded-full flex items-center justify-center mx-auto mb-8 shadow-[inset_0_0_30px_rgba(168,85,247,0.2)] animate-pulse">
+                                            <Icon name={games.length === 0 ? "gamepad-2" : "search-x"} size={60} className="text-purple-400/50" />
+                                        </div>
+                                        <h2 className="text-4xl font-black mb-4">{games.length === 0 ? "Your Vault is Empty" : "No Matches Found"}</h2>
+                                        <p className="text-gray-400 text-lg">{games.length === 0 ? "Hit the 'Add Game' button above to start building your collection!" : "Try adjusting your search terms."}</p>
                                     </div>
-                                    <h2 className="text-3xl font-light mb-4 text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">Your Vault is Empty</h2>
-                                    <p className="text-gray-400 max-w-md text-center text-lg">Click the <strong className="text-purple-300">Add Game</strong> button above to add your first game!</p>
-                                </div>
-                            ) : displayedGames.length === 0 ? (
-                                <div className="h-full flex flex-col items-center justify-center opacity-80 mt-10 animate-in fade-in duration-500">
-                                    <Icon name="search-x" size={80} className="mb-6 text-white/30" />
-                                    <h2 className="text-2xl font-light mb-2">No results found</h2>
-                                    <p className="text-gray-400">Try adjusting your search or filters.</p>
-                                </div>
-                            ) : (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8">
-                                    {displayedGames.map((game, index) => (
-                                        <div
-                                            key={game.id}
-                                            onClick={() => setPlayingGame(game)}
-                                            className={`group relative rounded-[2.5rem] overflow-hidden cursor-pointer transition-all duration-500 hover:-translate-y-4 hover:shadow-[0_30px_60px_-15px_rgba(147,51,234,0.7)] ${glassPanelClass} hover:border-purple-500/50 animate-in fade-in slide-in-from-bottom-8 fill-mode-both`}
-                                            style={{ animationDelay: `${index * 50}ms` }}
-                                        >
-                                            <div className="aspect-[4/3] w-full relative overflow-hidden">
-                                                <img src={game.cover} alt={game.name} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-125 opacity-80 group-hover:opacity-100" />
-                                                <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent"></div>
-                                                
-                                                <div className="absolute top-4 right-4 z-20">
-                                                    <button
-                                                        onClick={(e) => toggleFavorite(game, e)}
-                                                        className={`p-3 rounded-full backdrop-blur-xl border transition-all duration-500 hover:scale-110 active:scale-95 ${game.favorite ? 'bg-red-500/20 border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.6)]' : 'bg-black/40 border-white/10 hover:bg-white/20 hover:border-white/30'}`}
+                                ) : (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8">
+                                        {displayedGames.map((game, idx) => (
+                                            <div 
+                                                key={game.id} 
+                                                onClick={() => setPlayingGame(game)}
+                                                className="glass-panel group rounded-[3rem] overflow-hidden cursor-pointer transition-all duration-500 hover:-translate-y-4 hover:shadow-[0_40px_70px_-15px_rgba(168,85,247,0.6)] hover:border-purple-500/60 animate-in fade-in slide-in-from-bottom-8 fill-mode-both"
+                                                style={{ animationDelay: `${idx * 50}ms` }}
+                                            >
+                                                <div className="aspect-[4/3] relative overflow-hidden bg-slate-900 flex items-center justify-center">
+                                                    {game.cover ? (
+                                                        <img src={game.cover} className="w-full h-full object-cover group-hover:scale-125 transition-transform duration-1000 ease-out opacity-80 group-hover:opacity-100" />
+                                                    ) : (
+                                                        <Icon name="gamepad-2" size={64} className="opacity-10" />
+                                                    )}
+                                                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-900/40 to-transparent opacity-80 group-hover:opacity-50 transition-opacity"></div>
+                                                    
+                                                    {/* Hover Play Button */}
+                                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                                        <div className="p-6 bg-white/20 backdrop-blur-md rounded-full shadow-[0_0_40px_rgba(168,85,247,0.8)] border border-white/30 transform scale-50 group-hover:scale-100 transition-transform duration-500 ease-out">
+                                                            <Icon name="play" size={40} className="text-white ml-2" />
+                                                        </div>
+                                                    </div>
+
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); toggleFavorite(game, e); }}
+                                                        className={`absolute top-5 right-5 p-3.5 rounded-full backdrop-blur-xl border transition-all duration-300 hover:scale-110 active:scale-95 z-20 ${game.favorite ? 'bg-red-500/20 border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.5)]' : 'bg-black/40 border-white/10 hover:bg-white/20 hover:border-white/30'}`}
                                                     >
-                                                        <Icon name="heart" size={20} fill={game.favorite ? "#ef4444" : "none"} className={game.favorite ? "text-red-500" : "text-white/70"} />
+                                                        <Icon name="heart" size={22} fill={game.favorite ? "currentColor" : "none"} className={game.favorite ? "text-red-500" : "text-white/60 group-hover:text-white"} />
                                                     </button>
                                                 </div>
-
-                                                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-                                                    <div className="p-5 rounded-full bg-purple-500/40 border border-white/20 backdrop-blur-md transform translate-y-6 group-hover:translate-y-0 transition-all duration-500 shadow-[0_0_40px_rgba(168,85,247,0.6)]">
-                                                        <Icon name="play" size={40} className="ml-1 text-white drop-shadow-lg" />
+                                                <div className="p-8 relative">
+                                                    <h3 className="font-black text-2xl truncate pr-12 group-hover:text-purple-300 transition-colors">{game.name}</h3>
+                                                    <div className="flex items-center gap-2 mt-3">
+                                                        <span className={`px-4 py-1.5 rounded-full text-xs font-black tracking-widest uppercase border ${game.type === 'url' ? 'bg-blue-500/10 border-blue-500/20 text-blue-300' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'}`}>
+                                                            <Icon name={game.type === 'url' ? 'link' : 'file-code'} size={12} className="inline mr-1.5 mb-0.5" />
+                                                            {game.type}
+                                                        </span>
                                                     </div>
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); setGameToDelete(game); }}
+                                                        className="absolute bottom-8 right-6 p-3 rounded-full bg-red-500/10 text-red-400/60 hover:bg-red-500 hover:text-white transition-all opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 hover:shadow-[0_0_20px_rgba(239,68,68,0.6)]"
+                                                    >
+                                                        <Icon name="trash-2" size={20} />
+                                                    </button>
                                                 </div>
                                             </div>
-                                            <div className="p-6 bg-gradient-to-b from-transparent to-black/60">
-                                                <h3 className="font-bold text-2xl mb-3 truncate group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-purple-300 group-hover:to-blue-300 transition-all pr-10">{game.name}</h3>
-                                                <div className="flex items-center justify-between text-sm text-gray-400">
-                                                    <span className="flex items-center gap-2 uppercase tracking-widest px-4 py-1.5 rounded-full bg-white/5 border border-white/5 shadow-inner">
-                                                        <Icon name={game.type === 'url' ? 'link' : 'file-code'} size={14} className={game.type === 'url' ? "text-blue-400" : "text-emerald-400"} />
-                                                        {game.type === 'url' ? 'Embed' : 'Local'}
-                                                    </span>
-                                                </div>
-                                                <button 
-                                                    onClick={(e) => requestRemoveGame(game, e)}
-                                                    className="absolute bottom-5 right-5 p-3 rounded-full bg-red-500/10 text-red-400/70 hover:bg-red-500 hover:text-white transition-all duration-500 opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 hover:shadow-[0_0_20px_rgba(239,68,68,0.7)]"
-                                                >
-                                                    <Icon name="trash-2" size={18} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </main>
-                    </div>
-
-                    {isAddModalOpen && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-2xl animate-in fade-in duration-300">
-                            <div className={`relative w-full max-w-lg p-8 sm:p-10 rounded-[3rem] ${glassPanelClass} animate-in zoom-in-95 duration-500`}>
-                                <button onClick={() => setIsAddModalOpen(false)} className="absolute top-6 right-6 p-2 rounded-full bg-white/5 hover:bg-red-500/20 text-gray-400 hover:text-red-400 transition-all duration-300 hover:rotate-90">
-                                    <Icon name="x" size={24} />
-                                </button>
-                                <h2 className="text-3xl font-black mb-8 flex items-center gap-4 text-transparent bg-clip-text bg-gradient-to-r from-white to-purple-200">
-                                    <div className="p-3 rounded-full bg-purple-500/20 border border-purple-500/30 shadow-[0_0_15px_rgba(168,85,247,0.3)]">
-                                        <Icon name="gamepad-2" size={26} className="text-purple-400" />
-                                    </div>
-                                    Add Game
-                                </h2>
-
-                                {errorMsg && (
-                                    <div className="mb-6 p-4 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm flex items-start gap-3 animate-in slide-in-from-top-2">
-                                        <Icon name="alert-triangle" size={20} className="shrink-0 text-red-400" />
-                                        <p className="leading-relaxed font-medium">{errorMsg}</p>
+                                        ))}
                                     </div>
                                 )}
+                            </div>
+                        )}
 
-                                <form onSubmit={handleAddGame} className="space-y-6">
-                                    <div className="flex p-2 rounded-full bg-black/40 border border-white/10 shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)]">
-                                        <button type="button" onClick={() => {setAddMethod('url'); setErrorMsg('');}} className={`flex-1 py-3.5 rounded-full font-bold tracking-wide transition-all duration-300 ${addMethod === 'url' ? 'bg-gradient-to-r from-purple-500 to-blue-500 text-white shadow-[0_0_15px_rgba(168,85,247,0.4)] scale-[1.02]' : 'text-gray-400 hover:text-white'}`}>URL Embed</button>
-                                        <button type="button" onClick={() => {setAddMethod('file'); setErrorMsg('');}} className={`flex-1 py-3.5 rounded-full font-bold tracking-wide transition-all duration-300 ${addMethod === 'file' ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.4)] scale-[1.02]' : 'text-gray-400 hover:text-white'}`}>Upload File</button>
-                                    </div>
-                                    
-                                    <div className="group">
-                                        <input type="text" value={newGameName || ''} onChange={(e) => setNewGameName(e.target.value)} placeholder="Game Name" className={inputClass} required />
-                                    </div>
-
-                                    {addMethod === 'url' ? (
-                                        <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-                                            <input type="url" value={newGameUrl || ''} onChange={(e) => setNewGameUrl(e.target.value)} placeholder="Game Embed URL (e.g., Scratch link)" className={inputClass} required />
+                        {view === 'community' && (
+                            <div className="animate-in fade-in duration-500 max-w-7xl mx-auto space-y-10">
+                                <div className="flex flex-col sm:flex-row items-center justify-between gap-6 glass-panel p-8 rounded-[3rem]">
+                                    <div className="flex items-center gap-5">
+                                        <div className="p-4 bg-blue-500/20 rounded-2xl border border-blue-500/30 shadow-[0_0_30px_rgba(59,130,246,0.3)]">
+                                            <Icon name="globe" size={32} className="text-blue-400" />
                                         </div>
-                                    ) : (
-                                        <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed border-white/20 rounded-[2.5rem] p-10 flex flex-col items-center justify-center cursor-pointer hover:bg-white/5 hover:border-emerald-500/50 transition-all duration-300 shadow-[inset_0_2px_10px_rgba(0,0,0,0.2)] group hover:shadow-[0_0_20px_rgba(16,185,129,0.15)]">
-                                            <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
-                                            <Icon name="file-archive" size={48} className="mb-4 text-emerald-400/80 group-hover:scale-110 transition-transform duration-300" />
-                                            <span className="font-bold text-center text-lg">{fileName || 'Select Game File'}</span>
-                                            <span className="text-xs text-emerald-400/60 mt-2 tracking-widest uppercase">No Size Limit!</span>
+                                        <div>
+                                            <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-purple-300">Vault Network</h2>
+                                            <p className="text-gray-400 font-medium">Discover and import games shared by the community.</p>
                                         </div>
-                                    )}
-
-                                    <div className="group">
-                                        <input type="url" value={newGameCover || ''} onChange={(e) => setNewGameCover(e.target.value)} placeholder="Cover Image URL (Optional)" className={inputClass} />
                                     </div>
-
-                                    <button type="submit" className="w-full py-4 mt-4 rounded-full bg-gradient-to-r from-purple-600 via-purple-500 to-blue-600 hover:from-purple-500 hover:to-blue-400 text-white font-black text-lg tracking-widest shadow-[0_0_20px_rgba(147,51,234,0.4)] hover:shadow-[0_0_40px_rgba(147,51,234,0.7)] transition-all duration-300 hover:-translate-y-1 active:scale-[0.98]">
-                                        SAVE GAME
+                                    <button onClick={fetchCommunity} className="flex items-center gap-3 px-8 py-4 rounded-full neo-input text-sm font-black tracking-widest uppercase hover:text-blue-300 hover:border-blue-500/30 transition-all active:scale-95 w-full sm:w-auto justify-center">
+                                        <Icon name="refresh-cw" size={20} className={isLoadingCommunity ? "animate-spin text-blue-400" : ""} />
+                                        Refresh
                                     </button>
-                                </form>
-                            </div>
-                        </div>
-                    )}
-
-                    {gameToDelete && (
-                        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-2xl animate-in fade-in duration-300">
-                            <div className={`relative w-full max-w-sm p-8 sm:p-10 rounded-[3rem] ${glassPanelClass} text-center animate-in zoom-in-95 duration-500 border-red-500/30 shadow-[0_0_50px_rgba(239,68,68,0.2)]`}>
-                                <div className="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-red-500/10 border border-red-500/20 mb-6 shadow-[inset_0_2px_10px_rgba(0,0,0,0.2)] relative">
-                                    <div className="absolute inset-0 rounded-full bg-red-500/20 animate-ping opacity-50"></div>
-                                    <Icon name="trash-2" size={36} className="text-red-500 relative z-10" />
                                 </div>
-                                <h3 className="text-2xl font-black mb-3">Delete Game?</h3>
-                                <p className="text-gray-300 mb-8 leading-relaxed">Are you sure you want to remove <br/><strong className="text-white text-lg mt-2 inline-block">"{gameToDelete.name}"</strong> <br/>from your Vault?</p>
-                                <div className="flex gap-4">
-                                    <button onClick={() => setGameToDelete(null)} className="flex-1 py-4 rounded-full bg-white/5 hover:bg-white/15 font-bold transition-all hover:-translate-y-1">Cancel</button>
-                                    <button onClick={confirmRemoveGame} className="flex-1 py-4 rounded-full bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 font-black shadow-[0_0_20px_rgba(239,68,68,0.4)] hover:shadow-[0_0_40px_rgba(239,68,68,0.7)] transition-all hover:-translate-y-1 active:scale-[0.98]">Delete</button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
 
+                                {isLoadingCommunity ? (
+                                    <div className="flex flex-col items-center justify-center py-32">
+                                        <Icon name="loader" size={60} className="animate-spin text-blue-500 drop-shadow-[0_0_20px_rgba(59,130,246,0.5)] mb-6" />
+                                        <h3 className="text-2xl font-black text-gray-300">Connecting to Network...</h3>
+                                    </div>
+                                ) : communityVaults.length === 0 ? (
+                                    <div className="glass-panel p-16 rounded-[4rem] text-center max-w-2xl mx-auto border-dashed border-2 border-white/20">
+                                        <Icon name="wifi-off" size={64} className="mx-auto mb-6 text-white/20" />
+                                        <h3 className="text-3xl font-black mb-3">No Vaults Found</h3>
+                                        <p className="text-gray-400 text-lg mb-8">It's quiet here. Be the first to share your collection!</p>
+                                        <button onClick={() => setIsNetworkModalOpen(true)} className="px-10 py-5 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full font-black text-sm tracking-widest uppercase hover:shadow-[0_10px_40px_rgba(59,130,246,0.6)] hover:-translate-y-1 transition-all active:scale-95">Publish My Vault</button>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+                                        {communityVaults.map((vault, i) => (
+                                            <div key={i} className="glass-panel rounded-[3rem] p-8 flex flex-col gap-6 hover:border-blue-500/40 hover:shadow-[0_30px_60px_-15px_rgba(59,130,246,0.4)] transition-all duration-500 hover:-translate-y-2 group">
+                                                <div className="flex items-center gap-5">
+                                                    <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-[1.5rem] flex items-center justify-center font-black text-4xl shadow-[inset_0_2px_15px_rgba(255,255,255,0.3)] shadow-[0_10px_20px_rgba(59,130,246,0.4)] group-hover:scale-110 transition-transform duration-500 rotate-3">
+                                                        {vault.userName?.[0]?.toUpperCase() || 'V'}
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="font-black text-2xl tracking-tight">{vault.userName}'s Vault</h4>
+                                                        <p className="text-xs text-blue-300/80 font-black uppercase tracking-widest mt-1">{vault.games?.length || 0} Shared Games</p>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="space-y-3 mt-2">
+                                                    {vault.games?.slice(0, 4).map((g, j) => (
+                                                        <div key={j} className="bg-black/30 p-4 pl-6 rounded-2xl border border-white/5 flex items-center justify-between group/item hover:bg-white/10 hover:border-white/20 transition-all shadow-[inset_0_2px_10px_rgba(0,0,0,0.2)]">
+                                                            <div className="flex items-center gap-4 overflow-hidden">
+                                                                <Icon name="gamepad-2" size={20} className="text-white/30 shrink-0 group-hover/item:text-blue-400 transition-colors" />
+                                                                <span className="truncate font-bold text-lg text-gray-200 group-hover/item:text-white transition-colors">{g.name}</span>
+                                                            </div>
+                                                            <button onClick={() => importGame(g)} className="p-3 bg-white/5 hover:bg-blue-500 hover:text-white rounded-xl text-blue-400 transition-all shadow-sm active:scale-95 hover:shadow-[0_0_15px_rgba(59,130,246,0.5)]">
+                                                                <Icon name="download" size={20}/>
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                    {vault.games && vault.games.length > 4 && (
+                                                        <div className="text-center text-xs text-gray-500 pt-3 font-black uppercase tracking-[0.2em]">
+                                                            + {vault.games.length - 4} more hidden
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </main>
+
+                    {/* FULLSCREEN PLAYER */}
                     {playingGame && (
                         <div className="fixed inset-0 z-[100] bg-black flex flex-col animate-in zoom-in-95 duration-300">
-                            <div className="flex items-center justify-between p-4 bg-slate-900/90 backdrop-blur-3xl border-b border-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
-                                <h2 className="text-xl font-bold flex items-center gap-3">
-                                    <div className="p-2 rounded-xl bg-purple-500/20 border border-purple-500/30">
+                            <div className="h-20 flex items-center justify-between px-8 glass-panel rounded-none border-t-0 border-x-0">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-2.5 bg-purple-500/20 rounded-xl border border-purple-500/30">
                                         <Icon name="gamepad-2" size={24} className="text-purple-400" />
                                     </div>
-                                    <span className="tracking-widest">{playingGame.name}</span>
-                                </h2>
-                                <button onClick={() => setPlayingGame(null)} className="px-6 py-2.5 bg-red-500/20 hover:bg-red-500/40 border border-red-500/30 text-red-100 rounded-full flex items-center gap-2 transition-all duration-300 group shadow-[0_0_15px_rgba(239,68,68,0.3)] hover:shadow-[0_0_25px_rgba(239,68,68,0.6)] hover:scale-105 active:scale-95">
-                                    <Icon name="log-out" size={20} className="group-hover:-translate-x-1 transition-transform" /> <span className="font-bold tracking-wide">Exit Game</span>
+                                    <span className="font-black text-xl tracking-widest text-white">{playingGame.name}</span>
+                                </div>
+                                <button onClick={() => setPlayingGame(null)} className="flex items-center gap-2 px-8 py-3.5 bg-red-500/10 hover:bg-red-500 border border-red-500/30 text-red-400 hover:text-white rounded-full text-sm font-black tracking-widest uppercase transition-all shadow-[0_0_20px_rgba(239,68,68,0.2)] hover:shadow-[0_0_30px_rgba(239,68,68,0.5)] active:scale-95">
+                                    <Icon name="log-out" size={18} /> Exit
                                 </button>
                             </div>
-                            <div className="flex-1 bg-black relative">
-                                <iframe 
-                                    src={playingGame.type === 'url' ? playingGame.url : blobUrl} 
-                                    className="absolute inset-0 w-full h-full border-none bg-white" 
-                                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-pointer-lock allow-downloads allow-modals"
-                                    allow="fullscreen; pointer-lock; clipboard-read; clipboard-write; gamepad; cross-origin-isolated"
-                                    allowFullScreen 
-                                />
+                            <iframe 
+                                src={playingGame.type === 'url' ? playingGame.url : blobUrl} 
+                                className="flex-1 w-full h-full border-none bg-white"
+                                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-pointer-lock allow-downloads"
+                            />
+                        </div>
+                    )}
+
+                    {/* MODAL: ADD GAME */}
+                    {isAddModalOpen && (
+                        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 bg-slate-950/80 backdrop-blur-3xl animate-in fade-in duration-500">
+                            <div className="relative w-full max-w-2xl rounded-[4rem] p-10 sm:p-14 text-center animate-in zoom-in-95 duration-500 glass-panel overflow-hidden">
+                                <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-[radial-gradient(circle_at_center,rgba(168,85,247,0.15)_0%,transparent_50%)] pointer-events-none"></div>
+                                
+                                <button onClick={() => setIsAddModalOpen(false)} className="absolute top-8 right-8 p-4 rounded-full neo-input hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30 transition-all duration-300 hover:rotate-90 z-10">
+                                    <Icon name="x" size={28} />
+                                </button>
+
+                                <div className="relative z-10">
+                                    <h2 className="text-4xl sm:text-5xl font-black mb-10 tracking-tighter flex items-center justify-center gap-5 text-transparent bg-clip-text bg-gradient-to-r from-white to-purple-200">
+                                        <div className="p-4 bg-gradient-to-br from-purple-500 to-blue-600 rounded-[1.5rem] shadow-[0_0_30px_rgba(168,85,247,0.5)] rotate-3">
+                                            <Icon name="plus" size={36} className="text-white" />
+                                        </div>
+                                        Add to Vault
+                                    </h2>
+
+                                    <div className="flex p-2.5 bg-black/40 rounded-full mb-10 border border-white/10 shadow-[inset_0_2px_20px_rgba(0,0,0,0.5)]">
+                                        <button onClick={() => setAddMethod('url')} className={`flex-1 py-4.5 rounded-full text-sm font-black tracking-widest transition-all duration-300 ${addMethod === 'url' ? 'bg-gradient-to-r from-purple-500 to-blue-500 text-white shadow-[0_0_20px_rgba(168,85,247,0.5)] scale-[1.02]' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}>URL EMBED</button>
+                                        <button onClick={() => setAddMethod('file')} className={`flex-1 py-4.5 rounded-full text-sm font-black tracking-widest transition-all duration-300 ${addMethod === 'file' ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-[0_0_20px_rgba(16,185,129,0.5)] scale-[1.02]' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}>LOCAL FILE</button>
+                                    </div>
+
+                                    <form onSubmit={handleAddGame} className="space-y-8 text-left">
+                                        <div className="space-y-3">
+                                            <label className="text-[11px] font-black uppercase tracking-[0.2em] text-purple-300 ml-6">Game Title</label>
+                                            <input 
+                                                type="text" 
+                                                placeholder="Enter game name..." 
+                                                className="w-full px-8 py-5 rounded-full neo-input text-xl font-bold text-white placeholder-gray-600"
+                                                value={newGameName}
+                                                onChange={e => setNewGameName(e.target.value)}
+                                                required
+                                            />
+                                        </div>
+
+                                        {addMethod === 'url' ? (
+                                            <div className="space-y-3 animate-in slide-in-from-right-4 duration-300">
+                                                <label className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-300 ml-6">Source URL</label>
+                                                <input 
+                                                    type="url" 
+                                                    placeholder="https://..." 
+                                                    className="w-full px-8 py-5 rounded-full neo-input blue-focus text-xl font-bold text-white placeholder-gray-600"
+                                                    value={newGameUrl}
+                                                    onChange={e => setNewGameUrl(e.target.value)}
+                                                    required
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div 
+                                                onClick={() => fileInputRef.current?.click()}
+                                                className="group relative min-h-[220px] flex flex-col items-center justify-center border-[3px] border-dashed border-white/10 rounded-[3rem] bg-black/20 hover:bg-emerald-500/5 hover:border-emerald-500/40 transition-all duration-300 shadow-[inset_0_2px_20px_rgba(0,0,0,0.3)] overflow-hidden cursor-pointer animate-in slide-in-from-left-4"
+                                            >
+                                                <input type="file" accept=".html" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
+                                                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(16,185,129,0.15)_0%,transparent_70%)] opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
+                                                <div className="w-24 h-24 bg-emerald-500/10 border border-emerald-500/20 rounded-[2rem] flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-emerald-500/20 transition-all shadow-[0_0_30px_rgba(16,185,129,0.2)]">
+                                                    <Icon name="file-code" size={48} className="text-emerald-400 drop-shadow-lg" />
+                                                </div>
+                                                <p className="font-black text-2xl text-emerald-100">{fileName || 'Click to Upload .html'}</p>
+                                                <p className="text-xs text-emerald-400/60 mt-3 uppercase font-black tracking-[0.2em]">Unlimited Size • Offline Support</p>
+                                            </div>
+                                        )}
+
+                                        <div className="space-y-3">
+                                            <label className="text-[11px] font-black uppercase tracking-[0.2em] text-gray-400 ml-6">Cover Image (URL)</label>
+                                            <input 
+                                                type="url" 
+                                                placeholder="Optional image link..." 
+                                                className="w-full px-8 py-5 rounded-full neo-input text-xl font-bold text-white placeholder-gray-600"
+                                                value={newGameCover}
+                                                onChange={e => setNewGameCover(e.target.value)}
+                                            />
+                                        </div>
+
+                                        <button 
+                                            type="submit" 
+                                            className="w-full py-7 mt-6 rounded-full bg-gradient-to-r from-purple-600 via-purple-500 to-blue-600 font-black text-lg tracking-[0.2em] uppercase shadow-[0_15px_40px_rgba(147,51,234,0.5)] hover:shadow-[0_20px_60px_rgba(147,51,234,0.7)] hover:-translate-y-2 active:scale-95 transition-all duration-300 border border-white/20 border-t-white/40"
+                                        >
+                                            Save to Library
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* MODAL: NETWORK PROFILE */}
+                    {isNetworkModalOpen && (
+                        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 bg-slate-950/80 backdrop-blur-3xl animate-in fade-in duration-500">
+                            <div className="relative w-full max-w-2xl rounded-[4rem] p-10 sm:p-14 text-center animate-in zoom-in-95 duration-500 glass-panel overflow-hidden">
+                                <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-[radial-gradient(circle_at_center,rgba(59,130,246,0.15)_0%,transparent_50%)] pointer-events-none"></div>
+                                
+                                <button onClick={() => setIsNetworkModalOpen(false)} className="absolute top-8 right-8 p-4 rounded-full neo-input hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30 transition-all duration-300 hover:rotate-90 z-10">
+                                    <Icon name="x" size={28} />
+                                </button>
+
+                                <div className="relative z-10">
+                                    <div className="w-32 h-32 bg-blue-500/20 border border-blue-500/30 shadow-[0_0_50px_rgba(59,130,246,0.4)] rounded-[2.5rem] flex items-center justify-center mx-auto mb-10 rotate-3">
+                                        <Icon name="globe" size={56} className="text-blue-300 drop-shadow-xl" />
+                                    </div>
+                                    <h3 className="text-4xl sm:text-5xl font-black mb-4 tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-purple-300">Network Profile</h3>
+                                    <p className="text-blue-200/60 text-lg mb-12 max-w-md mx-auto font-medium">Claim a name to share your games with the global community.</p>
+                                    
+                                    <div className="text-left space-y-3 mb-10">
+                                        <label className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-400 ml-6">Your Public Vault Name</label>
+                                        <input 
+                                            type="text" 
+                                            className="w-full px-8 py-6 rounded-full neo-input blue-focus text-2xl font-black text-center text-white placeholder-gray-600"
+                                            placeholder="e.g. ProGamer99"
+                                            value={vaultName}
+                                            onChange={e => setVaultName(e.target.value)}
+                                        />
+                                    </div>
+
+                                    <div className="flex flex-col gap-5">
+                                        <button onClick={publishVault} disabled={isPublishing} className="w-full py-6 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-black text-lg tracking-[0.2em] uppercase shadow-[0_15px_40px_rgba(59,130,246,0.5)] hover:shadow-[0_20px_60px_rgba(59,130,246,0.7)] hover:-translate-y-2 transition-all active:scale-95 disabled:opacity-50 border border-white/20">
+                                            {isPublishing ? 'Publishing...' : 'Publish Vault'}
+                                        </button>
+                                        <button onClick={deleteSharedVault} disabled={isDeleting} className="w-full py-6 rounded-full bg-black/40 border border-red-500/20 text-red-400 hover:bg-red-500/20 hover:border-red-500/50 hover:text-red-300 font-black text-sm tracking-[0.2em] uppercase transition-all disabled:opacity-50 active:scale-95 shadow-[inset_0_2px_15px_rgba(0,0,0,0.5)]">
+                                            {isDeleting ? 'Removing...' : 'Unpublish & Go Private'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* MODAL: DELETE CONFIRMATION */}
+                    {gameToDelete && (
+                        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 bg-slate-950/80 backdrop-blur-3xl animate-in fade-in duration-500">
+                            <div className="relative w-full max-w-xl rounded-[4rem] p-10 sm:p-14 text-center animate-in zoom-in-95 duration-500 glass-panel overflow-hidden border-red-500/20">
+                                <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-[radial-gradient(circle_at_center,rgba(239,68,68,0.15)_0%,transparent_50%)] pointer-events-none"></div>
+                                
+                                <div className="relative z-10">
+                                    <div className="mx-auto flex items-center justify-center h-28 w-28 rounded-[2rem] bg-red-500/10 border border-red-500/20 mb-10 shadow-[0_0_40px_rgba(239,68,68,0.3)] relative rotate-3">
+                                        <div className="absolute inset-0 rounded-[2rem] bg-red-500/20 animate-ping opacity-30"></div>
+                                        <Icon name="trash-2" size={48} className="text-red-400 drop-shadow-xl relative z-10" />
+                                    </div>
+                                    <h3 className="text-4xl font-black mb-6 text-transparent bg-clip-text bg-gradient-to-r from-white to-red-200 tracking-tighter">Delete Game?</h3>
+                                    <p className="text-red-200/60 text-xl mb-12 leading-relaxed font-medium">Are you sure you want to delete <br/><strong className="text-white bg-white/5 px-5 py-2 rounded-2xl border border-white/10 mt-4 inline-block shadow-[inset_0_2px_10px_rgba(0,0,0,0.3)]">{gameToDelete.name}</strong> <br/><span className="text-sm mt-4 block">This action is permanent.</span></p>
+                                    <div className="flex flex-col sm:flex-row gap-5">
+                                        <button onClick={() => setGameToDelete(null)} className="flex-1 py-6 rounded-full neo-input text-gray-300 font-black text-sm tracking-[0.2em] uppercase transition-all hover:text-white active:scale-95">Cancel</button>
+                                        <button onClick={confirmRemoveGame} className="flex-1 py-6 rounded-full bg-gradient-to-r from-red-600 to-rose-600 text-white font-black text-sm tracking-[0.2em] uppercase shadow-[0_15px_40px_rgba(239,68,68,0.4)] hover:shadow-[0_20px_60px_rgba(239,68,68,0.6)] transition-all hover:-translate-y-2 active:scale-95 border border-white/20 border-t-white/40">Delete</button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}
@@ -464,8 +628,7 @@
             );
         }
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
     </script>
 </body>
 </html>
