@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Game Vault</title>
+    <title>Vault</title>
+    <!-- Favicon using a gamepad SVG icon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a855f7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect width='20' height='12' x='2' y='6' rx='2'/><path d='M9 12h.01'/><path d='M15 12h.01'/><path d='M12 15h.01'/><path d='M12 9h.01'/></svg>">
     <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React and ReactDOM libraries -->
@@ -35,21 +37,32 @@
         ::-webkit-scrollbar-thumb:hover {
             background: rgba(255, 255, 255, 0.2);
         }
+
+        /* Subtle float animations for background */
+        @keyframes float {
+            0% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(5deg); }
+            100% { transform: translateY(0px) rotate(0deg); }
+        }
+        .animate-float {
+            animation: float 15s ease-in-out infinite;
+        }
+        .animate-float-delayed {
+            animation: float 18s ease-in-out infinite;
+            animation-delay: 2s;
+        }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useRef, useEffect } = React;
+        const { useState, useRef, useEffect, useMemo } = React;
         
-        // Custom Hook to use Lucide Icons in the browser build safely
         const Icon = ({ name, size = 24, className = "", fill = "none" }) => {
             const iconRef = useRef(null);
             
             useEffect(() => {
-                // By injecting the icon inside a span, we prevent React from losing track 
-                // of the DOM nodes when Lucide replaces the <i> tag with an <svg> tag.
                 if (iconRef.current && window.lucide) {
                     iconRef.current.innerHTML = `<i data-lucide="${name}" class="${className}" fill="${fill}" style="width: ${size}px; height: ${size}px;"></i>`;
                     window.lucide.createIcons({ root: iconRef.current });
@@ -60,11 +73,17 @@
         };
 
         function App() {
-            const [games, setGames] = useState([]);
+            const [games, setGames] = useState(() => {
+                const saved = localStorage.getItem('vault_games');
+                return saved ? JSON.parse(saved) : [];
+            });
+            
+            const [searchQuery, setSearchQuery] = useState('');
             const [isAddModalOpen, setIsAddModalOpen] = useState(false);
             const [playingGame, setPlayingGame] = useState(null);
             const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
             const [gameToDelete, setGameToDelete] = useState(null);
+            const [errorMsg, setErrorMsg] = useState("");
 
             const [addMethod, setAddMethod] = useState('url'); 
             const [newGameName, setNewGameName] = useState('');
@@ -74,9 +93,30 @@
             const [fileName, setFileName] = useState('');
             const fileInputRef = useRef(null);
 
+            useEffect(() => {
+                localStorage.setItem('vault_games', JSON.stringify(games));
+            }, [games]);
+
             const handleAddGame = (e) => {
                 e.preventDefault();
+                setErrorMsg("");
                 if (!newGameName.trim()) return;
+
+                let finalContent = null;
+                let finalUrl = null;
+
+                if (addMethod === 'url') {
+                    if (!newGameUrl) return;
+                    finalUrl = newGameUrl;
+                } else {
+                    if (!newGameFileContent) return;
+                    const sizeInBytes = new Blob([newGameFileContent]).size;
+                    if (sizeInBytes > 2000000) {
+                        setErrorMsg("File is too large to save (max 2MB). Try using an embed URL instead!");
+                        return;
+                    }
+                    finalContent = newGameFileContent;
+                }
 
                 const newGame = {
                     id: crypto.randomUUID(),
@@ -84,17 +124,13 @@
                     type: addMethod,
                     cover: newGameCover || 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=800',
                     favorite: false,
+                    createdAt: Date.now()
                 };
 
-                if (addMethod === 'url') {
-                    if (!newGameUrl) return;
-                    newGame.url = newGameUrl;
-                } else {
-                    if (!newGameFileContent) return;
-                    newGame.content = newGameFileContent;
-                }
+                if (finalUrl) newGame.url = finalUrl;
+                if (finalContent) newGame.content = finalContent;
 
-                setGames([...games, newGame]);
+                setGames(prev => [...prev, newGame]);
                 resetForm();
                 setIsAddModalOpen(false);
             };
@@ -121,6 +157,7 @@
                 setNewGameCover('');
                 setNewGameFileContent('');
                 setFileName('');
+                setErrorMsg('');
                 setAddMethod('url');
             };
 
@@ -131,112 +168,142 @@
 
             const confirmRemoveGame = () => {
                 if (gameToDelete) {
-                    setGames(games.filter(g => g.id !== gameToDelete.id));
+                    setGames(prev => prev.filter(g => g.id !== gameToDelete.id));
                     setGameToDelete(null);
                 }
             };
 
-            const toggleFavorite = (id, e) => {
+            const toggleFavorite = (game, e) => {
                 e.stopPropagation();
-                setGames(games.map(g => g.id === id ? { ...g, favorite: !g.favorite } : g));
+                setGames(prev => prev.map(g => g.id === game.id ? { ...g, favorite: !g.favorite } : g));
             };
 
-            const sortedGames = [...games].sort((a, b) => {
-                if (a.favorite === b.favorite) return a.name.localeCompare(b.name);
-                return a.favorite ? -1 : 1;
-            });
+            const displayedGames = useMemo(() => {
+                return games
+                    .filter(g => showFavoritesOnly ? g.favorite : true)
+                    .filter(g => g.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                    .sort((a, b) => {
+                        if (a.favorite === b.favorite) return a.name.localeCompare(b.name);
+                        return a.favorite ? -1 : 1;
+                    });
+            }, [games, showFavoritesOnly, searchQuery]);
 
-            const displayedGames = showFavoritesOnly 
-                ? sortedGames.filter(g => g.favorite) 
-                : sortedGames;
-
-            const glassPanelClass = "bg-white/10 backdrop-blur-2xl border border-white/20 shadow-[0_8px_32px_0_rgba(0,0,0,0.3)] transition-all duration-500";
-            const inputClass = "w-full bg-black/20 border border-white/10 text-white placeholder-gray-400 rounded-2xl p-4 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 hover:bg-black/30 hover:border-white/30 transition-all duration-300 shadow-inner";
+            const glassPanelClass = "bg-white/10 backdrop-blur-2xl border border-white/20 border-t-white/30 border-l-white/30 shadow-[0_15px_35px_rgba(0,0,0,0.4)] transition-all duration-500";
+            const inputClass = "w-full bg-white/5 backdrop-blur-md border border-white/10 text-white placeholder-gray-400 rounded-full px-6 py-4 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:bg-white/10 hover:bg-white/10 hover:border-white/30 transition-all duration-300 shadow-[inset_0_2px_15px_rgba(0,0,0,0.2)]";
 
             return (
                 <div className="min-h-screen text-white overflow-hidden relative">
                     <div className="absolute inset-0 z-0 bg-slate-900 overflow-hidden">
-                        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-purple-600/30 blur-[120px] animate-pulse"></div>
-                        <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] rounded-full bg-blue-600/30 blur-[150px] animate-pulse"></div>
+                        <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] rounded-full bg-purple-600/20 blur-[120px] animate-float"></div>
+                        <div className="absolute bottom-[-10%] right-[-10%] w-[70%] h-[70%] rounded-full bg-blue-600/20 blur-[150px] animate-float-delayed"></div>
+                        <div className="absolute top-[30%] left-[40%] w-[40%] h-[40%] rounded-full bg-emerald-500/10 blur-[100px] animate-pulse" style={{ animationDuration: '8s' }}></div>
                     </div>
 
                     <div className="relative z-10 h-screen flex flex-col">
-                        <header className="p-6 md:p-8 flex items-center justify-between max-w-7xl mx-auto w-full">
-                            <div className="flex items-center gap-4 group cursor-default">
-                                <div className={`p-4 rounded-[2rem] ${glassPanelClass} bg-gradient-to-br from-purple-500/50 to-blue-500/50 group-hover:scale-110 group-hover:rotate-12 transition-all duration-500`}>
-                                    <Icon name="gamepad-2" size={32} />
+                        <header className="p-6 md:p-8 flex flex-col max-w-[90rem] mx-auto w-full gap-6">
+                            
+                            <div className="flex items-center justify-between w-full">
+                                <div className="flex items-center gap-3 sm:gap-4 cursor-default">
+                                    <div className={`p-3 sm:p-4 rounded-[1.5rem] sm:rounded-[2rem] ${glassPanelClass} bg-gradient-to-br from-purple-500/50 to-blue-500/50 hover:scale-110 hover:rotate-12 hover:shadow-[0_0_40px_rgba(168,85,247,0.5)] transition-all duration-500`}>
+                                        <Icon name="gamepad-2" size={32} />
+                                    </div>
+                                    <h1 className="text-3xl sm:text-4xl font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-white via-gray-200 to-gray-400 hover:from-purple-300 hover:to-blue-300 transition-all duration-500 cursor-pointer">
+                                        VAULT
+                                    </h1>
                                 </div>
-                                <h1 className="text-4xl font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-white via-gray-200 to-gray-400 group-hover:from-purple-300 group-hover:to-blue-300 transition-all duration-500">
-                                    VAULT
-                                </h1>
-                            </div>
-                            <div className="flex items-center gap-3 sm:gap-5">
-                                {games.length > 0 && (
+
+                                <div className="flex items-center gap-3 sm:gap-4">
+                                    {games.length > 0 && (
+                                        <button
+                                            onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+                                            className={`flex items-center justify-center gap-2 px-4 sm:px-5 py-3 sm:py-3.5 rounded-full backdrop-blur-md transition-all duration-500 border hover:-translate-y-1 ${
+                                                showFavoritesOnly 
+                                                    ? 'bg-red-500/20 border-red-500/50 text-red-300 shadow-[0_8px_20px_rgba(239,68,68,0.4)]' 
+                                                    : 'bg-white/5 hover:bg-white/15 border-white/10 text-gray-300 hover:shadow-[0_8px_20px_rgba(255,255,255,0.1)]'
+                                            }`}
+                                        >
+                                            <Icon name="heart" size={20} className={showFavoritesOnly ? "text-red-400" : ""} />
+                                        </button>
+                                    )}
                                     <button
-                                        onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
-                                        className={`flex items-center gap-2 px-5 py-3.5 rounded-full backdrop-blur-md transition-all duration-500 border hover:-translate-y-1 ${
-                                            showFavoritesOnly 
-                                                ? 'bg-red-500/20 border-red-500/50 text-red-300 shadow-[0_8px_20px_rgba(239,68,68,0.4)]' 
-                                                : 'bg-white/5 hover:bg-white/15 border-white/10 text-gray-300'
-                                        }`}
+                                        onClick={() => setIsAddModalOpen(true)}
+                                        className="group flex items-center justify-center gap-2 px-5 sm:px-8 py-3 sm:py-3.5 rounded-full bg-gradient-to-r from-white/10 to-white/5 hover:from-purple-500/40 hover:to-blue-500/40 border border-white/20 border-t-white/30 backdrop-blur-xl transition-all duration-500 hover:scale-105 shadow-[0_8px_20px_rgba(0,0,0,0.3)] hover:shadow-[0_10px_30px_rgba(168,85,247,0.5)] active:scale-95"
                                     >
-                                        <Icon name="heart" size={20} className={showFavoritesOnly ? "text-red-400" : ""} />
-                                        <span className="font-bold hidden sm:block">Favorites</span>
+                                        <Icon name="plus" size={22} className="group-hover:rotate-180 transition-transform duration-700 text-purple-300 group-hover:text-white" />
+                                        <span className="font-bold tracking-wide text-white hidden sm:block">Add Game</span>
                                     </button>
-                                )}
-                                <button
-                                    onClick={() => setIsAddModalOpen(true)}
-                                    className="group flex items-center gap-2 px-6 sm:px-8 py-3.5 rounded-full bg-gradient-to-r from-white/10 to-white/5 hover:from-purple-500/40 hover:to-blue-500/40 border border-white/20 backdrop-blur-xl transition-all duration-500 hover:scale-105"
-                                >
-                                    <Icon name="plus" size={22} className="group-hover:rotate-180 transition-transform duration-700" />
-                                    <span className="font-bold tracking-wide hidden sm:block">Add Game</span>
-                                </button>
+                                </div>
+                            </div>
+
+                            <div className="relative group w-full">
+                                <div className="absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none">
+                                    <Icon name="search" size={20} className="text-gray-400 group-focus-within:text-purple-400 group-hover:text-purple-300 transition-colors duration-300" />
+                                </div>
+                                <input 
+                                    type="text" 
+                                    placeholder="Search vault..." 
+                                    value={searchQuery || ''}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className={inputClass + " w-full pl-14 pr-6 py-4 text-lg"}
+                                />
                             </div>
                         </header>
 
-                        <main className="flex-1 overflow-y-auto p-6 md:p-8 max-w-7xl mx-auto w-full">
+                        <main className="flex-1 overflow-y-auto p-6 md:p-8 max-w-[90rem] mx-auto w-full">
                             {games.length === 0 ? (
-                                <div className="h-full flex flex-col items-center justify-center opacity-80 mt-10">
-                                    <Icon name="gamepad-2" size={100} className="mb-8 text-white/40" />
-                                    <h2 className="text-3xl font-light mb-4">Your Vault is Empty</h2>
-                                    <p className="text-gray-400 text-center">Add a game to get started!</p>
+                                <div className="h-full flex flex-col items-center justify-center opacity-80 mt-10 animate-in fade-in zoom-in duration-700">
+                                    <div className="relative">
+                                        <div className="absolute inset-0 bg-purple-500/20 blur-[50px] rounded-full"></div>
+                                        <Icon name="gamepad-2" size={100} className="mb-8 text-white/40 animate-bounce" style={{ animationDuration: '3s' }} />
+                                    </div>
+                                    <h2 className="text-3xl font-light mb-4 text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">Your Vault is Empty</h2>
+                                    <p className="text-gray-400 max-w-md text-center text-lg">Click the <strong className="text-purple-300">Add Game</strong> button above to add your first game!</p>
+                                </div>
+                            ) : displayedGames.length === 0 ? (
+                                <div className="h-full flex flex-col items-center justify-center opacity-80 mt-10 animate-in fade-in duration-500">
+                                    <Icon name="search-x" size={80} className="mb-6 text-white/30" />
+                                    <h2 className="text-2xl font-light mb-2">No results found</h2>
+                                    <p className="text-gray-400">Try adjusting your search or filters.</p>
                                 </div>
                             ) : (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-                                    {displayedGames.map((game) => (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8">
+                                    {displayedGames.map((game, index) => (
                                         <div
                                             key={game.id}
                                             onClick={() => setPlayingGame(game)}
-                                            className={`group relative rounded-[2.5rem] overflow-hidden cursor-pointer transition-all duration-500 hover:-translate-y-4 hover:shadow-[0_25px_50px_-12px_rgba(147,51,234,0.6)] border border-white/10 hover:border-purple-500/50 bg-white/5 backdrop-blur-xl`}
+                                            className={`group relative rounded-[2.5rem] overflow-hidden cursor-pointer transition-all duration-500 hover:-translate-y-4 hover:shadow-[0_30px_60px_-15px_rgba(147,51,234,0.7)] ${glassPanelClass} hover:border-purple-500/50 animate-in fade-in slide-in-from-bottom-8 fill-mode-both`}
+                                            style={{ animationDelay: `${index * 50}ms` }}
                                         >
                                             <div className="aspect-[4/3] w-full relative overflow-hidden">
                                                 <img src={game.cover} alt={game.name} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-125 opacity-80 group-hover:opacity-100" />
                                                 <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent"></div>
+                                                
                                                 <div className="absolute top-4 right-4 z-20">
                                                     <button
-                                                        onClick={(e) => toggleFavorite(game.id, e)}
-                                                        className={`p-3 rounded-full backdrop-blur-xl border transition-all duration-500 ${game.favorite ? 'bg-red-500/20 border-red-500/50' : 'bg-black/40 border-white/10'}`}
+                                                        onClick={(e) => toggleFavorite(game, e)}
+                                                        className={`p-3 rounded-full backdrop-blur-xl border transition-all duration-500 hover:scale-110 active:scale-95 ${game.favorite ? 'bg-red-500/20 border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.6)]' : 'bg-black/40 border-white/10 hover:bg-white/20 hover:border-white/30'}`}
                                                     >
-                                                        <Icon name="heart" size={20} className={game.favorite ? "text-red-500" : "text-white/70"} />
+                                                        <Icon name="heart" size={20} fill={game.favorite ? "#ef4444" : "none"} className={game.favorite ? "text-red-500" : "text-white/70"} />
                                                     </button>
                                                 </div>
+
                                                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-                                                    <div className="p-5 rounded-full bg-purple-500/40 border border-white/20">
-                                                        <Icon name="play" size={36} className="ml-1" />
+                                                    <div className="p-5 rounded-full bg-purple-500/40 border border-white/20 backdrop-blur-md transform translate-y-6 group-hover:translate-y-0 transition-all duration-500 shadow-[0_0_40px_rgba(168,85,247,0.6)]">
+                                                        <Icon name="play" size={40} className="ml-1 text-white drop-shadow-lg" />
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className="p-6 bg-gradient-to-b from-transparent to-black/40">
-                                                <h3 className="font-bold text-2xl mb-2 truncate">{game.name}</h3>
+                                            <div className="p-6 bg-gradient-to-b from-transparent to-black/60">
+                                                <h3 className="font-bold text-2xl mb-3 truncate group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-purple-300 group-hover:to-blue-300 transition-all pr-10">{game.name}</h3>
                                                 <div className="flex items-center justify-between text-sm text-gray-400">
-                                                    <span className="flex items-center gap-1.5 uppercase tracking-widest px-3 py-1 rounded-full bg-white/5">
-                                                        <Icon name={game.type === 'url' ? 'link' : 'file-code'} size={14} />
-                                                        {game.type === 'url' ? 'Link' : 'File'}
+                                                    <span className="flex items-center gap-2 uppercase tracking-widest px-4 py-1.5 rounded-full bg-white/5 border border-white/5 shadow-inner">
+                                                        <Icon name={game.type === 'url' ? 'link' : 'file-code'} size={14} className={game.type === 'url' ? "text-blue-400" : "text-emerald-400"} />
+                                                        {game.type === 'url' ? 'Embed' : 'Local'}
                                                     </span>
                                                 </div>
                                                 <button 
                                                     onClick={(e) => requestRemoveGame(game, e)}
-                                                    className="absolute bottom-5 right-5 p-2.5 rounded-full bg-red-500/10 text-red-400/70 hover:bg-red-500 hover:text-white transition-all duration-500 opacity-0 group-hover:opacity-100"
+                                                    className="absolute bottom-5 right-5 p-3 rounded-full bg-red-500/10 text-red-400/70 hover:bg-red-500 hover:text-white transition-all duration-500 opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 hover:shadow-[0_0_20px_rgba(239,68,68,0.7)]"
                                                 >
                                                     <Icon name="trash-2" size={18} />
                                                 </button>
@@ -248,65 +315,88 @@
                         </main>
                     </div>
 
-                    {/* Add Modal */}
                     {isAddModalOpen && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xl">
-                            <div className={`relative w-full max-w-md p-8 rounded-[3rem] ${glassPanelClass}`}>
-                                <button onClick={() => setIsAddModalOpen(false)} className="absolute top-6 right-6 text-gray-400 hover:text-red-400 transition-all duration-300">
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-2xl animate-in fade-in duration-300">
+                            <div className={`relative w-full max-w-lg p-8 sm:p-10 rounded-[3rem] ${glassPanelClass} animate-in zoom-in-95 duration-500`}>
+                                <button onClick={() => setIsAddModalOpen(false)} className="absolute top-6 right-6 p-2 rounded-full bg-white/5 hover:bg-red-500/20 text-gray-400 hover:text-red-400 transition-all duration-300 hover:rotate-90">
                                     <Icon name="x" size={24} />
                                 </button>
-                                <h2 className="text-3xl font-black mb-8 flex items-center gap-3">Add to Vault</h2>
-                                <form onSubmit={handleAddGame} className="space-y-6">
-                                    <div className="flex p-1.5 rounded-2xl bg-black/40 border border-white/10">
-                                        <button type="button" onClick={() => setAddMethod('url')} className={`flex-1 py-3 rounded-xl transition-all ${addMethod === 'url' ? 'bg-purple-500/50 text-white' : 'text-gray-400'}`}>URL</button>
-                                        <button type="button" onClick={() => setAddMethod('file')} className={`flex-1 py-3 rounded-xl transition-all ${addMethod === 'file' ? 'bg-emerald-500/50 text-white' : 'text-gray-400'}`}>File</button>
+                                <h2 className="text-3xl font-black mb-8 flex items-center gap-4 text-transparent bg-clip-text bg-gradient-to-r from-white to-purple-200">
+                                    <div className="p-3 rounded-full bg-purple-500/20 border border-purple-500/30 shadow-[0_0_15px_rgba(168,85,247,0.3)]">
+                                        <Icon name="gamepad-2" size={26} className="text-purple-400" />
                                     </div>
-                                    <input type="text" value={newGameName} onChange={(e) => setNewGameName(e.target.value)} placeholder="Game Name" className={inputClass} required />
+                                    Add Game
+                                </h2>
+
+                                {errorMsg && (
+                                    <div className="mb-6 p-4 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm flex items-start gap-3 animate-in slide-in-from-top-2">
+                                        <Icon name="alert-triangle" size={20} className="shrink-0 text-red-400" />
+                                        <p className="leading-relaxed font-medium">{errorMsg}</p>
+                                    </div>
+                                )}
+
+                                <form onSubmit={handleAddGame} className="space-y-6">
+                                    <div className="flex p-2 rounded-full bg-black/40 border border-white/10 shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)]">
+                                        <button type="button" onClick={() => {setAddMethod('url'); setErrorMsg('');}} className={`flex-1 py-3.5 rounded-full font-bold tracking-wide transition-all duration-300 ${addMethod === 'url' ? 'bg-gradient-to-r from-purple-500 to-blue-500 text-white shadow-[0_0_15px_rgba(168,85,247,0.4)] scale-[1.02]' : 'text-gray-400 hover:text-white'}`}>URL Embed</button>
+                                        <button type="button" onClick={() => {setAddMethod('file'); setErrorMsg('');}} className={`flex-1 py-3.5 rounded-full font-bold tracking-wide transition-all duration-300 ${addMethod === 'file' ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.4)] scale-[1.02]' : 'text-gray-400 hover:text-white'}`}>HTML File</button>
+                                    </div>
+                                    
+                                    <div className="group">
+                                        <input type="text" value={newGameName || ''} onChange={(e) => setNewGameName(e.target.value)} placeholder="Game Name" className={inputClass} required />
+                                    </div>
+
                                     {addMethod === 'url' ? (
                                         <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-                                            <input type="url" value={newGameUrl} onChange={(e) => setNewGameUrl(e.target.value)} placeholder="Game Embed URL (e.g., Scratch embed)" className={inputClass} required />
-                                            <span className="text-xs text-red-300/90 mt-2 ml-2 block leading-relaxed">
-                                                <strong>Note:</strong> Standard website links might show up blank! Make sure to use the specific "Embed" link for the game.
-                                            </span>
+                                            <input type="url" value={newGameUrl || ''} onChange={(e) => setNewGameUrl(e.target.value)} placeholder="Game Embed URL (e.g., Scratch link)" className={inputClass} required />
                                         </div>
                                     ) : (
-                                        <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed border-white/10 rounded-2xl p-8 flex flex-col items-center cursor-pointer hover:bg-white/5 transition-all">
+                                        <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed border-white/20 rounded-[2.5rem] p-10 flex flex-col items-center justify-center cursor-pointer hover:bg-white/5 hover:border-emerald-500/50 transition-all duration-300 shadow-[inset_0_2px_10px_rgba(0,0,0,0.2)] group hover:shadow-[0_0_20px_rgba(16,185,129,0.15)]">
                                             <input type="file" accept=".html" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
-                                            <Icon name="file-code" size={40} className="mb-2" />
-                                            <span>{fileName || 'Select HTML File'}</span>
+                                            <Icon name="file-code" size={48} className="mb-4 text-emerald-400/80 group-hover:scale-110 transition-transform duration-300" />
+                                            <span className="font-bold text-center text-lg">{fileName || 'Select HTML File'}</span>
+                                            <span className="text-xs text-emerald-400/60 mt-2 tracking-widest uppercase">Max 2MB allowed</span>
                                         </div>
                                     )}
-                                    <input type="url" value={newGameCover} onChange={(e) => setNewGameCover(e.target.value)} placeholder="Cover Image URL (Optional)" className={inputClass} />
-                                    <button type="submit" className="w-full py-4 rounded-2xl bg-purple-600 hover:bg-purple-500 font-black tracking-widest transition-all">ADD GAME</button>
+
+                                    <div className="group">
+                                        <input type="url" value={newGameCover || ''} onChange={(e) => setNewGameCover(e.target.value)} placeholder="Cover Image URL (Optional)" className={inputClass} />
+                                    </div>
+
+                                    <button type="submit" className="w-full py-4 mt-4 rounded-full bg-gradient-to-r from-purple-600 via-purple-500 to-blue-600 hover:from-purple-500 hover:to-blue-400 text-white font-black text-lg tracking-widest shadow-[0_0_20px_rgba(147,51,234,0.4)] hover:shadow-[0_0_40px_rgba(147,51,234,0.7)] transition-all duration-300 hover:-translate-y-1 active:scale-[0.98]">
+                                        SAVE GAME
+                                    </button>
                                 </form>
                             </div>
                         </div>
                     )}
 
-                    {/* Delete Confirmation */}
                     {gameToDelete && (
-                        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xl">
-                            <div className={`relative w-full max-w-sm p-8 rounded-[3rem] ${glassPanelClass} text-center`}>
-                                <Icon name="alert-circle" size={48} className="mx-auto text-red-500 mb-4" />
+                        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-2xl animate-in fade-in duration-300">
+                            <div className={`relative w-full max-w-sm p-8 sm:p-10 rounded-[3rem] ${glassPanelClass} text-center animate-in zoom-in-95 duration-500 border-red-500/30 shadow-[0_0_50px_rgba(239,68,68,0.2)]`}>
+                                <div className="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-red-500/10 border border-red-500/20 mb-6 shadow-[inset_0_2px_10px_rgba(0,0,0,0.2)] relative">
+                                    <div className="absolute inset-0 rounded-full bg-red-500/20 animate-ping opacity-50"></div>
+                                    <Icon name="trash-2" size={36} className="text-red-500 relative z-10" />
+                                </div>
                                 <h3 className="text-2xl font-black mb-3">Delete Game?</h3>
-                                <p className="text-gray-300 mb-8">Are you sure you want to remove "{gameToDelete.name}"?</p>
+                                <p className="text-gray-300 mb-8 leading-relaxed">Are you sure you want to remove <br/><strong className="text-white text-lg mt-2 inline-block">"{gameToDelete.name}"</strong> <br/>from your Vault?</p>
                                 <div className="flex gap-4">
-                                    <button onClick={() => setGameToDelete(null)} className="flex-1 py-3.5 rounded-2xl bg-white/5 hover:bg-white/15">Cancel</button>
-                                    <button onClick={confirmRemoveGame} className="flex-1 py-3.5 rounded-2xl bg-red-600 hover:bg-red-500 font-black">Delete</button>
+                                    <button onClick={() => setGameToDelete(null)} className="flex-1 py-4 rounded-full bg-white/5 hover:bg-white/15 font-bold transition-all hover:-translate-y-1">Cancel</button>
+                                    <button onClick={confirmRemoveGame} className="flex-1 py-4 rounded-full bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 font-black shadow-[0_0_20px_rgba(239,68,68,0.4)] hover:shadow-[0_0_40px_rgba(239,68,68,0.7)] transition-all hover:-translate-y-1 active:scale-[0.98]">Delete</button>
                                 </div>
                             </div>
                         </div>
                     )}
 
-                    {/* Fullscreen Overlay */}
                     {playingGame && (
                         <div className="fixed inset-0 z-[100] bg-black flex flex-col animate-in zoom-in-95 duration-300">
-                            <div className="flex items-center justify-between p-4 bg-slate-900/90 backdrop-blur-2xl border-b border-white/10">
+                            <div className="flex items-center justify-between p-4 bg-slate-900/90 backdrop-blur-3xl border-b border-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
                                 <h2 className="text-xl font-bold flex items-center gap-3">
-                                    <Icon name="gamepad-2" size={24} className="text-purple-400" />
-                                    {playingGame.name}
+                                    <div className="p-2 rounded-xl bg-purple-500/20 border border-purple-500/30">
+                                        <Icon name="gamepad-2" size={24} className="text-purple-400" />
+                                    </div>
+                                    <span className="tracking-widest">{playingGame.name}</span>
                                 </h2>
-                                <button onClick={() => setPlayingGame(null)} className="px-6 py-2.5 bg-red-500/20 hover:bg-red-500/40 border border-red-500/30 text-red-100 rounded-full flex items-center gap-2 transition-all group shadow-[0_0_15px_rgba(239,68,68,0.3)] hover:scale-105 active:scale-95">
+                                <button onClick={() => setPlayingGame(null)} className="px-6 py-2.5 bg-red-500/20 hover:bg-red-500/40 border border-red-500/30 text-red-100 rounded-full flex items-center gap-2 transition-all duration-300 group shadow-[0_0_15px_rgba(239,68,68,0.3)] hover:shadow-[0_0_25px_rgba(239,68,68,0.6)] hover:scale-105 active:scale-95">
                                     <Icon name="log-out" size={20} className="group-hover:-translate-x-1 transition-transform" /> <span className="font-bold tracking-wide">Exit Game</span>
                                 </button>
                             </div>
