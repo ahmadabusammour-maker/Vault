@@ -132,8 +132,9 @@
             // Create a Blob URL safely when playing a local file game to bypass WASM/Sandbox restrictions
             useEffect(() => {
                 if (playingGame && playingGame.type === 'file') {
-                    // Create a virtual file in memory
-                    const blob = new Blob([playingGame.content], { type: 'text/html' });
+                    // Create a virtual file in memory. 
+                    // By passing playingGame.content directly (which is now a Blob), we preserve exact binary data.
+                    const blob = new Blob([playingGame.content], { type: 'text/html;charset=utf-8' });
                     const url = URL.createObjectURL(blob);
                     setBlobUrl(url);
                     
@@ -160,6 +161,7 @@
                     finalUrl = newGameUrl;
                 } else {
                     if (!newGameFileContent) return;
+                    // The content is now stored natively as a Blob object!
                     finalContent = newGameFileContent;
                 }
 
@@ -189,11 +191,9 @@
                     setNewGameName(file.name.replace(/\.[^/.]+$/, ""));
                 }
 
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    setNewGameFileContent(event.target.result);
-                };
-                reader.readAsText(file);
+                // DIRECT BLOB STORAGE: We no longer read it as text (which corrupts WASM/Binary files like Minecraft)
+                // We store the raw File object directly into state.
+                setNewGameFileContent(file);
             };
 
             const resetForm = () => {
@@ -454,7 +454,7 @@
                                     src={playingGame.type === 'url' ? playingGame.url : blobUrl} 
                                     className="absolute inset-0 w-full h-full border-none bg-white" 
                                     sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-pointer-lock allow-downloads allow-modals"
-                                    allow="fullscreen; pointer-lock; clipboard-read; clipboard-write"
+                                    allow="fullscreen; pointer-lock; clipboard-read; clipboard-write; gamepad; cross-origin-isolated"
                                     allowFullScreen 
                                 />
                             </div>
